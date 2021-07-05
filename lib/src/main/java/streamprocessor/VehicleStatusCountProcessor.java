@@ -43,8 +43,6 @@ public final class VehicleStatusCountProcessor {
         serdeProps.put("JsonPOJOClass", VehicleLocation.class);
         vehicleLocationDeserializer.configure(serdeProps, false);
 
-
-
         final Serializer<BillingCount> billingCountSerializer = new JsonPOJOSerializer<>();
         serdeProps.put("JsonPOJOClass", BillingCount.class);
         billingCountSerializer.configure(serdeProps, false);
@@ -53,12 +51,8 @@ public final class VehicleStatusCountProcessor {
         serdeProps.put("JsonPOJOClass", BillingCount.class);
         billingCountDeserializer.configure(serdeProps, false);
 
-
-
-
         final Serde<VehicleLocation> vehicleLocationSerde = Serdes.serdeFrom(vehicleLocationSerializer, vehicleLocationDeserializer);
         final Serde<BillingCount> billingCountSerde = Serdes.serdeFrom(billingCountSerializer, billingCountDeserializer);
-
 
         // Stream DSL
         StreamsBuilder streamsBuilder = new StreamsBuilder();
@@ -76,9 +70,9 @@ public final class VehicleStatusCountProcessor {
                         Materialized.with(Serdes.Integer(), Serdes.Long())
                 )
                 .toStream()
-                .map((k, v) -> new KeyValue<>(k, new BillingCount(k.window().start(), k.window().end(), v)))
-                .peek((k, v) -> System.out.println(k + " -- " + v.toString()));
-
+                .map((k, v) -> new KeyValue<>(k.key().toString(), new BillingCount(k.window().start(), k.window().end(), v)))
+                .peek((k, v) -> System.out.println(k + " -- " + v.toString()))
+                .to("new_counts", Produced.with(Serdes.String(), billingCountSerde));
 
         // Build stream topology and start the stream processing engine!
         Topology topology = streamsBuilder.build();
