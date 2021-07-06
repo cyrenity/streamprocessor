@@ -1,13 +1,8 @@
 package streamprocessor;
 
 import com.github.javafaker.Faker;
-import com.maxmind.geoip2.exception.AddressNotFoundException;
 import com.maxmind.geoip2.model.CityResponse;
-import org.apache.commons.lang3.ObjectUtils;
-import org.apache.kafka.common.serialization.Deserializer;
-import org.apache.kafka.common.serialization.Serde;
 import org.apache.kafka.common.serialization.Serdes;
-import org.apache.kafka.common.serialization.Serializer;
 import org.apache.kafka.streams.KafkaStreams;
 import org.apache.kafka.streams.KeyValue;
 import org.apache.kafka.streams.StreamsBuilder;
@@ -16,13 +11,10 @@ import org.apache.kafka.streams.errors.StreamsUncaughtExceptionHandler;
 import org.apache.kafka.streams.kstream.*;
 import streamprocessor.aggregator.BillingCount;
 import streamprocessor.extractors.GeoIPService;
-import streamprocessor.serde.JsonPOJODeserializer;
-import streamprocessor.serde.JsonPOJOSerializer;
-
+import streamprocessor.serdes.AppSerdes;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.*;
-import java.util.concurrent.TimeUnit;
 
 public final class VehicleStatusCountProcessor {
     private final String brokers;
@@ -35,35 +27,29 @@ public final class VehicleStatusCountProcessor {
 
         Map<String, Object> serdeProps = new HashMap<>();
 
-        final Serializer<VehicleLocation> vehicleLocationSerializer = new JsonPOJOSerializer<>();
-        serdeProps.put("JsonPOJOClass", VehicleLocation.class);
-        vehicleLocationSerializer.configure(serdeProps, false);
-
-        final Deserializer<VehicleLocation> vehicleLocationDeserializer = new JsonPOJODeserializer<>();
-        serdeProps.put("JsonPOJOClass", VehicleLocation.class);
-        vehicleLocationDeserializer.configure(serdeProps, false);
-
-        final Serializer<BillingCount> billingCountSerializer = new JsonPOJOSerializer<>();
-        serdeProps.put("JsonPOJOClass", BillingCount.class);
-        billingCountSerializer.configure(serdeProps, false);
-
-        final Deserializer<BillingCount> billingCountDeserializer = new JsonPOJODeserializer<>();
-        serdeProps.put("JsonPOJOClass", BillingCount.class);
-        billingCountDeserializer.configure(serdeProps, false);
-
-        final Serde<VehicleLocation> vehicleLocationSerde = Serdes.serdeFrom(vehicleLocationSerializer, vehicleLocationDeserializer);
-        final Serde<BillingCount> billingCountSerde = Serdes.serdeFrom(billingCountSerializer, billingCountDeserializer);
-
         // Stream DSL
         StreamsBuilder streamsBuilder = new StreamsBuilder();
-        KStream<Integer, VehicleLocation> initialStream = streamsBuilder.stream("gpslocation", Consumed.with(Serdes.Integer(), vehicleLocationSerde));
+        KStream<Integer, VehicleLocation> initialStream = streamsBuilder.stream("gpslocation", Consumed.with(Serdes.Integer(), AppSerdes.VehicleLocation()));
         Faker faker = new Faker();
 
         initialStream
+                .mapValues(v -> {
+                    String country = null;
+                    try {
+                        CityResponse cityResponse = new GeoIPService().getLocation(v.getIpAddress());
+                        country = cityResponse.getCountry().getName();
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    } catch (NullPointerException e) {
+                        country = "N/a";
+                    }
+                    v.setCountry(country);
+                    return v;
+                })
                 .selectKey((k, v) -> v.getVehicleId())
-                .peek((k, v) -> System.out.println(k +" - " +v))
-                .groupByKey(Grouped.with(Serdes.Integer(), vehicleLocationSerde))
-                .windowedBy(TimeWindows.of(Duration.ofSeconds(10)))
+                .peek((k, v) -> System.out.println(k +" - " +v.getCountry()))
+                .groupByKey(Grouped.with(Serdes.Integer(), AppSerdes.VehicleLocation()))
+                .windowedBy(TimeWindows.of(Duration.ofMinutes(1)))
                 .aggregate(
                         () -> 0L, /* initializer */
                         (aggKey, newValue, aggValue) -> aggValue + 1,
@@ -72,14 +58,14 @@ public final class VehicleStatusCountProcessor {
                 .toStream()
                 .map((k, v) -> new KeyValue<>(k.key().toString(), new BillingCount(k.window().start(), k.window().end(), v)))
                 .peek((k, v) -> System.out.println(k + " -- " + v.toString()))
-                .to("new_counts", Produced.with(Serdes.String(), billingCountSerde));
+                .to("new_counts", Produced.with(Serdes.String(), AppSerdes.BillingCount()));
 
         // Build stream topology and start the stream processing engine!
         Topology topology = streamsBuilder.build();
 
         Properties props = new Properties();
         props.put("bootstrap.servers", this.brokers);
-        props.put("application.id", "smsgwapp");
+        props.put("application.id", "streamprocessor");
         KafkaStreams streams = new KafkaStreams(topology, props);
         streams.setUncaughtExceptionHandler((exception -> StreamsUncaughtExceptionHandler.StreamThreadExceptionResponse.REPLACE_THREAD));
 
