@@ -10,12 +10,22 @@ public class VehicleLocation implements Serializable {
     private double latitude;
     private double longitude;
     private String ipAddress;
+    private String country;
+
+    public VehicleLocation(int vehicleId, boolean online, boolean available, double latitude, double longitude, String ipAddress) {
+        this.vehicleId = vehicleId;
+        this.online = online;
+        this.available = available;
+        this.latitude = latitude;
+        this.longitude = longitude;
+        this.ipAddress = ipAddress;
+    }
+
+    public VehicleLocation() {}
 
     public String getCountry() {
         return country;
     }
-
-    private String country;
 
     public void setCountry(String country) {
         this.country = country;
@@ -28,17 +38,6 @@ public class VehicleLocation implements Serializable {
     public void setIpAddress(String ipAddress) {
         this.ipAddress = ipAddress;
     }
-
-    public VehicleLocation(int vehicleId, boolean online, boolean available, double latitude, double longitude, String ipAddress) {
-        this.vehicleId = vehicleId;
-        this.online = online;
-        this.available = available;
-        this.latitude = latitude;
-        this.longitude = longitude;
-        this.ipAddress = ipAddress;
-    }
-
-    public VehicleLocation() {}
 
     public int getVehicleId() {
         return vehicleId;

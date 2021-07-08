@@ -5,14 +5,12 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException;
 import org.restlet.Component;
-import org.restlet.Restlet;
 import org.restlet.data.Protocol;
 import org.restlet.ext.json.JsonRepresentation;
 import org.restlet.representation.Representation;
-import org.restlet.representation.StringRepresentation;
-import org.restlet.resource.Directory;
 import org.restlet.resource.ServerResource;
-import org.restlet.routing.Router;
+import streamprocessor.Message;
+import streamprocessor.MessageResponse;
 
 import java.io.IOException;
 import java.text.DateFormat;

@@ -1,4 +1,4 @@
-package streamprocessor.api;
+package streamprocessor;
 
 import java.io.Serializable;
 import java.util.Date;
